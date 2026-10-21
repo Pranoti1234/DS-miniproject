@@ -1,0 +1,125 @@
+version: "3.8"
+
+services:
+  # Message Broker: RabbitMQ with Web Management Console
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: bloodlink-rabbitmq
+    ports:
+      - "5672:5672"     # AMQP protocol port
+      - "15672:15672"   # Management Web UI (guest / guest)
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # Inventory Service: Exclusive owner of Inventory SQLite Database
+  inventory-service:
+    build:
+      context: .
+      dockerfile: services/inventory_service/Dockerfile
+    container_name: bloodlink-inventory-service
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - INVENTORY_DB_PATH=/app/data/inventory.db
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - inventory_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  # Request & Matching Service: Coordinates allocations and publishes AMQP events
+  request-service:
+    build:
+      context: .
+      dockerfile: services/request_service/Dockerfile
+    container_name: bloodlink-request-service
+    ports:
+      - "5002:5002"
+    environment:
+      - PORT=5002
+      - INVENTORY_SERVICE_URL=http://inventory-service:5001
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/%2F
+      - REQUEST_DB_PATH=/app/data/requests.db
+      - ENABLE_RABBITMQ=true
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - request_data:/app/data
+    depends_on:
+      inventory-service:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  # Notification Service: Consumes AMQP events and saves records with deduplication
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification_service/Dockerfile
+    container_name: bloodlink-notification-service
+    ports:
+      - "5003:5003"
+    environment:
+      - PORT=5003
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/%2F
+      - NOTIFICATION_DB_PATH=/app/data/notifications.db
+      - ENABLE_RABBITMQ=true
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - notification_data:/app/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  # Frontend: Modern Dashboard Served by Nginx
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: bloodlink-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - inventory-service
+      - request-service
+      - notification-service
+    restart: unless-stopped
+
+volumes:
+  rabbitmq_data:
+    name: bloodlink_rabbitmq_data
+  inventory_data:
+    name: bloodlink_inventory_data
+  request_data:
+    name: bloodlink_request_data
+  notification_data:
+    name: bloodlink_notification_data
