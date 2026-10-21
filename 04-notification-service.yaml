@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: notification-data
+  namespace: bloodlink
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: bloodlink
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+        - name: notification-service
+          image: bloodlink-notification-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 5003}
+          env:
+            - {name: PORT, value: "5003"}
+            - {name: NOTIFICATION_DB_PATH, value: /app/data/notifications.db}
+            - name: RABBITMQ_URL
+              valueFrom:
+                configMapKeyRef: {name: bloodlink-config, key: RABBITMQ_URL}
+            - {name: ENABLE_RABBITMQ, value: "true"}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 20
+          volumeMounts:
+            - {name: data, mountPath: /app/data}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: notification-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: bloodlink
+spec:
+  type: NodePort
+  selector:
+    app: notification-service
+  ports:
+    - {name: http, port: 5003, targetPort: http, nodePort: 30053}

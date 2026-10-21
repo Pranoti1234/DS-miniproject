@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8fc">
+  <title>BloodLink | Coordination Dashboard</title>
+  <style>
+    :root{font-family:Inter,"Segoe UI",Arial,sans-serif;color:#192235;background:#f7f8fc;font-synthesis:none}
+    *{box-sizing:border-box}body{margin:0}header{background:#fff;border-bottom:1px solid #e7e9f0;padding:18px max(24px,calc((100% - 1180px)/2));display:flex;align-items:center;justify-content:space-between;gap:18px}
+    .brand{display:flex;align-items:center;gap:12px}.logo{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:#ffe8ed;color:#c62848;font-size:23px;font-weight:800}.brand h1{font-size:18px;margin:0}.brand p{color:#758096;margin:4px 0 0;font-size:12px}
+    .status{font-size:12px;color:#27744c;background:#e9f7ef;border-radius:99px;padding:8px 12px}.wrap{max-width:1180px;margin:30px auto;padding:0 24px}.intro{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:22px}.intro h2{font-size:27px;margin:0 0 7px}.intro p{color:#758096;margin:0}.actions{display:flex;gap:9px;flex-wrap:wrap}
+    button{border:0;border-radius:9px;background:#bd2948;color:#fff;padding:10px 15px;font-weight:650;cursor:pointer}button:hover{background:#a91e3b}button.secondary{background:#fff;border:1px solid #e1e4ec;color:#344057}button:disabled{opacity:.6;cursor:wait}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card{background:#fff;border:1px solid #e9ebf1;border-radius:14px;padding:19px}.metric label{font-size:12px;color:#758096}.metric strong{display:block;font-size:26px;margin:9px 0 3px}.metric small{color:#858da0}.section{margin-top:24px}.section h3{font-size:17px;margin:0 0 14px}.groups{display:grid;grid-template-columns:repeat(8,1fr);gap:10px}.group{background:#fff;border:1px solid #e9ebf1;border-radius:12px;padding:14px}.group b{color:#bd2948}.group strong{display:block;font-size:20px;margin-top:9px}.panels{display:grid;grid-template-columns:1.25fr 1fr;gap:16px}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:11px 9px;border-bottom:1px solid #edf0f4;white-space:nowrap}th{color:#758096;font-weight:600}.empty{color:#858da0;font-size:13px;padding:15px 0}.request-form{display:grid;grid-template-columns:1fr 1fr;gap:11px}input,select{width:100%;border:1px solid #dfe3ec;border-radius:8px;padding:10px;background:white;color:#192235}.request-form button{grid-column:1/-1}.notice{min-height:20px;color:#27744c;font-size:13px;margin-top:10px}.error{color:#b4233b}    .demo{color:#858da0;font-size:12px;margin-top:25px}
+    .algorithms{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.algorithm p{font-size:13px;color:#758096;min-height:36px}.algorithm button{margin:3px 4px 3px 0}.algorithm strong{color:#bd2948}
+    @media(max-width:850px){.grid{grid-template-columns:repeat(2,1fr)}.groups{grid-template-columns:repeat(4,1fr)}.panels{grid-template-columns:1fr}.intro{align-items:start;flex-direction:column}}
+    @media(max-width:850px){.algorithms{grid-template-columns:1fr}}
+    @media(max-width:450px){.wrap{padding:0 14px}.grid{gap:8px}.card{padding:14px}.groups{gap:7px}.group{padding:10px}.intro h2{font-size:23px}}
+  </style>
+</head>
+<body>
+  <header><div class="brand"><div class="logo">+</div><div><h1>BloodLink</h1><p>Distributed Blood Inventory Coordination</p></div></div><div class="status" id="service-status">Checking services…</div></header>
+  <main class="wrap">
+    <section class="intro"><div><h2>Coordination dashboard</h2><p>Live overview of simulated regional blood inventory and hospital requests.</p></div><div class="actions"><button class="secondary" id="refresh">Refresh data</button><button class="secondary" id="reset">Reset demo inventory</button></div></section>
+    <section class="grid">
+      <article class="card metric"><label>Regional blood centers</label><strong id="bank-count">—</strong><small>Participating demo centers</small></article>
+      <article class="card metric"><label>Available inventory</label><strong id="stock-total">—</strong><small>Simulated units across centers</small></article>
+      <article class="card metric"><label>Total requests</label><strong id="request-count">—</strong><small>Hospital allocation requests</small></article>
+      <article class="card metric"><label>Notifications</label><strong id="notification-count">—</strong><small>Request lifecycle events</small></article>
+    </section>
+    <section class="section"><h3>Available units by blood group</h3><div class="groups" id="groups"></div></section>
+    <section class="section panels">
+      <article class="card"><h3>Blood centers</h3><div class="table-wrap"><table><thead><tr><th>Center</th><th>City</th><th>Available</th></tr></thead><tbody id="banks"></tbody></table></div></article>
+      <article class="card"><h3>Create a hospital request</h3><form class="request-form" id="request-form">
+        <input name="hospital_name" placeholder="Hospital name" value="Ruby Hall Medical (Simulated)" maxlength="120" required>
+        <select name="blood_group" aria-label="Blood group"><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option selected>O+</option><option>O-</option></select>
+        <input name="units" type="number" min="1" value="3" required>
+        <select name="urgency" aria-label="Urgency"><option>Normal</option><option selected>Urgent</option><option>Critical</option></select>
+        <button type="submit">Submit request</button>
+      </form><button class="secondary" id="race-test" type="button">Run 5 simultaneous requests</button><div class="notice" id="request-notice" role="status"></div></article>
+    </section>
+    <section class="section panels">
+      <article class="card"><h3>Recent hospital requests</h3><div class="table-wrap"><table><thead><tr><th>Hospital</th><th>Group</th><th>Units</th><th>Status</th></tr></thead><tbody id="requests"></tbody></table></div></article>
+      <article class="card"><h3>Notification feed</h3><div id="notifications" class="empty">Loading notifications…</div></article>
+    </section>
+    <section class="section"><h3>Distributed systems demonstrations</h3><div class="algorithms">
+      <article class="card algorithm"><h3>Lamport logical clocks</h3><p>Advance local events and propagate a timestamp to another node.</p><div>Node A: <strong id="clock-a">0</strong> &nbsp; Node B: <strong id="clock-b">0</strong></div><div id="clock-message" class="notice">No message sent.</div><button class="secondary" id="clock-event">Node A event</button><button class="secondary" id="clock-send">Send A → B</button></article>
+      <article class="card algorithm"><h3>Bully leader election</h3><p>Crash the coordinator and elect the highest available node.</p><div id="election-state">Coordinator: Node 5</div><div class="notice" id="election-message">Nodes 1–5 online.</div><button class="secondary" id="crash-coordinator">Crash coordinator</button><button class="secondary" id="start-election">Start election</button></article>
+      <article class="card algorithm"><h3>Distributed mutual exclusion</h3><p>Requests are queued while another hospital holds the simulated critical section.</p><div id="lock-state">Lock available</div><div id="lock-queue" class="notice">Queue: empty</div><button class="secondary" id="alpha-request">Alpha requests lock</button><button class="secondary" id="beta-request">Beta requests lock</button><button class="secondary" id="lock-release">Release lock</button></article>
+    </div></section>
+    <p class="demo">Educational demonstration only. All centers, requests, and inventory are simulated and must not be used for clinical decisions.</p>
+  </main>
+  <script>
+    const host=location.hostname||"localhost",kubernetes=location.port==="30080";
+    const API={inventory:`http://${host}:${kubernetes?30051:5001}`,requests:`http://${host}:${kubernetes?30052:5002}`,notifications:`http://${host}:${kubernetes?30053:5003}`};
+    const el=id=>document.getElementById(id);
+    async function get(url){const response=await fetch(url);if(!response.ok)throw new Error(`${response.status} ${response.statusText}`);return response.json()}
+    async function refresh(){
+      try{
+        const [summary,banks,requests,notifications]=await Promise.all([
+          get(API.inventory+"/api/inventory/summary"),get(API.inventory+"/api/banks"),
+          get(API.requests+"/api/requests"),get(API.notifications+"/api/notifications")
+        ]);
+        el("service-status").textContent="All services connected";
+        el("bank-count").textContent=banks.count;el("stock-total").textContent=summary.data.grand_total.toLocaleString();
+        el("request-count").textContent=requests.count;el("notification-count").textContent=notifications.count;
+        el("groups").innerHTML=Object.entries(summary.data.groups).map(([g,n])=>`<div class="group"><b>${g}</b><strong>${n}</strong><small>units</small></div>`).join("");
+        el("banks").innerHTML=banks.data.map(b=>`<tr><td>${escapeHtml(b.name)}</td><td>${escapeHtml(b.city)}</td><td>${b.total_units}</td></tr>`).join("");
+        el("requests").innerHTML=requests.data.slice(0,8).map(r=>`<tr><td>${escapeHtml(r.hospital_name)}</td><td>${r.blood_group}</td><td>${r.units}</td><td>${r.status}</td></tr>`).join("")||'<tr><td colspan="4" class="empty">No requests yet</td></tr>';
+        el("notifications").innerHTML=notifications.data.slice(0,6).map(n=>`<p><b>${escapeHtml(n.title)}</b><br><span>${escapeHtml(n.message)}</span></p>`).join("")||"No notifications yet";
+        el("notifications").className=notifications.count?"":"empty";
+      }catch(error){el("service-status").textContent="Service connection issue";el("service-status").style.color="#b4233b";console.error(error)}
+    }
+    function escapeHtml(value){const div=document.createElement("div");div.textContent=String(value??"");return div.innerHTML}
+    el("request-form").addEventListener("submit",async event=>{
+      event.preventDefault();const button=event.currentTarget.querySelector("button");button.disabled=true;
+      const notice=el("request-notice");notice.className="notice";notice.textContent="Submitting…";
+      const data=Object.fromEntries(new FormData(event.currentTarget));data.units=Number(data.units);
+      try{const response=await fetch(API.requests+"/api/requests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});const result=await response.json();if(!response.ok)throw new Error(result.message||response.statusText);notice.textContent=`${result.data.status}: ${result.data.request_id}`;await refresh()}
+      catch(error){notice.className="notice error";notice.textContent=error.message}
+      finally{button.disabled=false}
+    });
+    el("race-test").addEventListener("click",async()=>{
+      const button=el("race-test");button.disabled=true;const notice=el("request-notice");notice.className="notice";notice.textContent="Running five concurrent demo requests…";
+      const body={hospital_name:"Concurrency Demo Hospital (Simulated)",blood_group:"O+",units:3,urgency:"Urgent"};
+      try{const responses=await Promise.all(Array.from({length:5},()=>fetch(API.requests+"/api/requests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})));const results=await Promise.all(responses.map(r=>r.json()));const succeeded=responses.filter(r=>r.ok).length;notice.textContent=`${succeeded}/5 requests processed. ${results.filter(r=>r.data?.status==="FULFILLED").length} fulfilled.`;await refresh()}
+      catch(error){notice.className="notice error";notice.textContent=error.message}
+      finally{button.disabled=false}
+    });
+    el("refresh").addEventListener("click",refresh);
+    el("reset").addEventListener("click",async()=>{if(!confirm("Reset inventory to its original simulated demo values?"))return;try{const response=await fetch(API.inventory+"/api/reset",{method:"POST"});if(!response.ok)throw new Error("Could not reset inventory");el("request-notice").textContent="Demo inventory reset.";await refresh()}catch(error){el("request-notice").textContent=error.message}});
+    let clockA=0,clockB=0;
+    el("clock-event").addEventListener("click",()=>{el("clock-a").textContent=String(++clockA);el("clock-message").textContent="Node A recorded a local event."});
+    el("clock-send").addEventListener("click",()=>{const sent=clockA;clockB=Math.max(clockB,sent)+1;el("clock-b").textContent=String(clockB);el("clock-message").textContent=`Node B received timestamp ${sent}; its clock is max(${clockB-1}, ${sent}) + 1.`});
+    let coordinator=5;
+    el("crash-coordinator").addEventListener("click",()=>{coordinator=0;el("election-state").textContent="Coordinator: none";el("election-message").textContent="Node 5 is offline."});
+    el("start-election").addEventListener("click",()=>{if(coordinator){el("election-message").textContent=`Node ${coordinator} is still coordinator.`;return}coordinator=4;el("election-state").textContent="Coordinator: Node 4";el("election-message").textContent="Node 2 started an election; Node 4 won as the highest online node."});
+    let lockHolder="",lockQueue=[];
+    function renderLock(){el("lock-state").textContent=lockHolder?`Lock held by ${lockHolder}`:"Lock available";el("lock-queue").textContent="Queue: "+(lockQueue.join(", ")||"empty")}
+    function requestLock(name){if(lockHolder===name||lockQueue.includes(name))return;if(!lockHolder)lockHolder=name;else lockQueue.push(name);renderLock()}
+    el("alpha-request").addEventListener("click",()=>requestLock("Hospital Alpha"));
+    el("beta-request").addEventListener("click",()=>requestLock("Hospital Beta"));
+    el("lock-release").addEventListener("click",()=>{lockHolder=lockQueue.shift()||"";renderLock()});
+    refresh();setInterval(refresh,10000);
+  </script>
+</body>
+</html>

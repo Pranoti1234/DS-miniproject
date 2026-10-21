@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bloodlink
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bloodlink-config
+  namespace: bloodlink
+data:
+  INVENTORY_SERVICE_URL: "http://inventory-service:5001"
+  RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/%2F"
